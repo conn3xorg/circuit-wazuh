@@ -286,9 +286,20 @@ circuit "wazuh_server" {
     file {
       path       = "/var/ossec/etc/authd.pass"
       content_wo = var.enrollment_password
-      owner      = "root"
+      owner      = "wazuh"
       group      = "wazuh"
       mode       = "0640"
+    }
+  }
+
+  # The package gives /var/ossec/etc to the wazuh user but leaves ossec.conf
+  # with root. An edit replaces the file from inside the directory, so the
+  # two need one owner. A package upgrade can put root back.
+  step "ossec_owner" {
+    command {
+      command  = "chown -h wazuh ${local.ossec}"
+      unless   = "[ \"$(stat -c %U ${local.ossec})\" = wazuh ]"
+      triggers = { package = conn3x_package.wazuh_server__manager_package[each.key].revision }
     }
   }
 
@@ -538,6 +549,17 @@ circuit "wazuh_agents" {
     notify = [handler.restart]
   }
 
+  # The package gives /var/ossec/etc to the wazuh user but leaves ossec.conf
+  # with root. An edit replaces the file from inside the directory, so the
+  # two need one owner. A package upgrade can put root back.
+  step "ossec_owner" {
+    command {
+      command  = "chown -h wazuh ${local.ossec}"
+      unless   = "[ \"$(stat -c %U ${local.ossec})\" = wazuh ]"
+      triggers = { package = conn3x_package.wazuh_agents__package[each.key].revision }
+    }
+  }
+
   step "manager_address" {
     line {
       path   = local.ossec
@@ -551,7 +573,7 @@ circuit "wazuh_agents" {
     file {
       path       = "/var/ossec/etc/authd.pass"
       content_wo = var.enrollment_password
-      owner      = "root"
+      owner      = "wazuh"
       group      = "wazuh"
       mode       = "0640"
     }
