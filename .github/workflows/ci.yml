@@ -114,14 +114,15 @@ jobs:
           sudo podman exec circuit-wazuh-server sh -ec '
             printf "#!/bin/sh\nprintf \"%%s\\n\" \"\$*\" >> /tmp/curl-args\nexec /usr/bin/curl \"\$@\"\n" > /usr/local/bin/curl
             chmod 755 /usr/local/bin/curl
+            install -m 666 /dev/null /tmp/curl-args
           '
           conn3x apply -auto-approve
           conn3x plan -detailed-exitcode
           # No credential was on curl's command line.
           sudo podman exec circuit-wazuh-server sh -ec '
             rm /usr/local/bin/curl
-            grep -q security/users /tmp/curl-args
-            if grep -qE "Bearer|Authorization|Ci-only" /tmp/curl-args; then exit 1; fi
+            grep -q security/users /tmp/curl-args || { echo "The step ran no recorded curl." >&2; exit 1; }
+            if grep -qE "Bearer|Authorization|Ci-only" /tmp/curl-args; then echo "A credential was on curl'"'"'s command line." >&2; exit 1; fi
             rm /tmp/curl-args
           '
           # A link in the dashboard's data directory leaves where it points as it was.
