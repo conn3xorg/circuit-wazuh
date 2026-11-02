@@ -111,8 +111,20 @@ jobs:
             rm -rf $d/config
             ln -s /root/kept $d/config
           '
+          sudo podman exec circuit-wazuh-server sh -ec '
+            printf "#!/bin/sh\nprintf \"%%s\\n\" \"\$*\" >> /tmp/curl-args\nexec /usr/bin/curl \"\$@\"\n" > /usr/local/bin/curl
+            chmod 755 /usr/local/bin/curl
+            install -m 666 /dev/null /tmp/curl-args
+          '
           conn3x apply -auto-approve
           conn3x plan -detailed-exitcode
+          # No credential was on curl's command line.
+          sudo podman exec circuit-wazuh-server sh -ec '
+            rm /usr/local/bin/curl
+            grep -q security/users /tmp/curl-args || { echo "The step ran no recorded curl." >&2; exit 1; }
+            if grep -qE "Bearer|Authorization|Ci-only" /tmp/curl-args; then echo "A credential was on curl'"'"'s command line." >&2; exit 1; fi
+            rm /tmp/curl-args
+          '
           # A link in the dashboard's data directory leaves where it points as it was.
           sudo podman exec circuit-wazuh-server sh -ec '
             [ "$(stat -c "%U:%G %a" /root/kept)" = "root:root 755" ]
@@ -144,7 +156,7 @@ jobs:
           sudo podman exec -d circuit-wazuh-server sh -c 'cd /tmp && exec runuser -u nobody -- python3 /tmp/listener.py 55000 /tmp/listener.crt /tmp/listener.key /tmp/listener.log'
           sleep 3
           if out=$(conn3x apply -auto-approve -no-color 2>&1); then exit 1; fi
-          printf '%s\n' "$out" | grep -q "isn't held by the Wazuh API"
+          printf '%s\n' "$out" | grep -q "exit status 1: Port 55000 isn't held by the Wazuh API"
           sudo podman exec circuit-wazuh-server sh -ec '
             [ ! -s /tmp/listener.log ]
             pkill -u nobody python3
