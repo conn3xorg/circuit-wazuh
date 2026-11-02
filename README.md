@@ -53,7 +53,7 @@ variable "wazuh_enrollment_password" {
 }
 
 module "wazuh" {
-  source = "github.com/conn3xorg/circuit-wazuh?ref=v0.1.1"
+  source = "github.com/conn3xorg/circuit-wazuh?ref=v0.1.2"
 
   server               = { siem = "203.0.113.10" }
   agents               = { web1 = "203.0.113.21", web2 = "203.0.113.22", db1 = "203.0.113.30" }
@@ -186,6 +186,8 @@ Requires Conn3x v0.6.9 or later and systemd on each host, with outbound HTTPS to
 Wazuh 4.14.9. Containers on arm64 (Podman, 8 GiB shared machine, 1 GB indexer heap): a server and an agent in two containers for Ubuntu 24.04 server with Debian 13 agent, Ubuntu 24.04 server with Rocky Linux 10 agent, Rocky Linux 10 server with Fedora 45 agent, and Rocky Linux 10 server with Ubuntu 24.04 agent. Each applied, had a clean second plan, and passed [test/check.sh](test/check.sh): the API refused a wrong password and the default one, took the right one, showed the agent active, and a changed file on the agent reached the indexer as an alert. The indexer runs fine in a container, so CI runs that same matrix on amd64, adding a dashboard sign-in, a password change by a second apply, and a check that state holds no secrets. On Ubuntu 24.04 containers we ran those by hand too: the old passwords got 401 and state had none of them.
 
 Those four pairs also ran the whole CI job on arm64 containers against hosts first applied at v0.1.0 and then moved to this version. All of it ran on Conn3x v0.6.11 and on a newer development build. The move hasn't been run on a droplet.
+
+This version: an Ubuntu 24.04 server with a Debian 13 agent and a Rocky Linux 10 server with an Ubuntu 24.04 agent ran the same checks on arm64 containers, including a password change with a link in the dashboard's data directory, which left where it pointed as it was. CI runs all four pairs on amd64.
 
 CI can't show you what only real hosts did. On DigitalOcean, with `s-4vcpu-8gb` servers and `s-1vcpu-1gb` agents: an Ubuntu 24.04 server with Debian 13 and Rocky Linux 10 agents, and a Rocky Linux 10 server, SELinux enforcing, with Ubuntu 24.04 and Fedora 44 agents (DigitalOcean has no Fedora 45 image). Every agent showed active, file integrity alerts arrived from each, vulnerability detection filled its index, the dashboard took the admin's password, and a wrong enrollment password was refused on a container pair. From outside, 9200, 55000 and 443 were closed, and 1514 and 1515 open. After rebooting all of them, the plan had no changes and the checks passed again. On Rocky Linux the services ran as `unconfined_service_t` with no denials in the audit log. Upgrading an Ubuntu 24.04 server and a Rocky Linux 10 agent from 4.14.8 to 4.14.9 by raising `wazuh_version` also worked, with a clean plan and a new alert after it.
 
