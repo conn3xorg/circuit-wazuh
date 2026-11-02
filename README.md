@@ -1,5 +1,7 @@
 # circuit-wazuh
 
+[![Conn3x grade](https://conn3x.org/circuits/wazuh/grade.svg)](https://conn3x.org/circuits/wazuh/grade)
+
 A Conn3x circuit that runs [Wazuh](https://wazuh.com), the open-source security platform. One host runs the manager, the indexer and the dashboard together. Every other host runs the agent, which enrolls with the manager and starts reporting: files that changed, packages with known vulnerabilities, logins, whatever its rules catch. You get one place to ask what happened on your machines, in place of twenty log files.
 
 The circuit installs a pinned 4.x release from Wazuh's own signed repositories. It makes a private CA on the server, so no key leaves that host, and it replaces every default password the packages ship with before anything listens off loopback. Passwords stay out of the plan and state.
