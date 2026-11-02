@@ -156,7 +156,7 @@ jobs:
           sudo podman exec -d circuit-wazuh-server sh -c 'cd /tmp && exec runuser -u nobody -- python3 /tmp/listener.py 55000 /tmp/listener.crt /tmp/listener.key /tmp/listener.log'
           sleep 3
           if out=$(conn3x apply -auto-approve -no-color 2>&1); then exit 1; fi
-          printf '%s\n' "$out" | grep -q "isn't held by the Wazuh API"
+          printf '%s\n' "$out" | grep -q "exit status 1: Port 55000 isn't held by the Wazuh API"
           sudo podman exec circuit-wazuh-server sh -ec '
             [ ! -s /tmp/listener.log ]
             pkill -u nobody python3
