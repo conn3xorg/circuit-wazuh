@@ -111,8 +111,19 @@ jobs:
             rm -rf $d/config
             ln -s /root/kept $d/config
           '
+          sudo podman exec circuit-wazuh-server sh -ec '
+            printf "#!/bin/sh\nprintf \"%%s\\n\" \"\$*\" >> /tmp/curl-args\nexec /usr/bin/curl \"\$@\"\n" > /usr/local/bin/curl
+            chmod 755 /usr/local/bin/curl
+          '
           conn3x apply -auto-approve
           conn3x plan -detailed-exitcode
+          # No credential was on curl's command line.
+          sudo podman exec circuit-wazuh-server sh -ec '
+            rm /usr/local/bin/curl
+            grep -q security/users /tmp/curl-args
+            if grep -qE "Bearer|Authorization|Ci-only" /tmp/curl-args; then exit 1; fi
+            rm /tmp/curl-args
+          '
           # A link in the dashboard's data directory leaves where it points as it was.
           sudo podman exec circuit-wazuh-server sh -ec '
             [ "$(stat -c "%U:%G %a" /root/kept)" = "root:root 755" ]

@@ -1,10 +1,11 @@
 #!/bin/sh
 # Moves the Wazuh API's two users off their published default passwords.
 # "applied" remembers the password in force, since the API wants the old one
-# to set a new one. Passwords reach curl on stdin, never on a command line,
-# and only a port held by root or the wazuh user gets them. That narrows the
-# window, since the API could stop between the check and the send. What closes
-# it is checking the certificate the API made for itself, which names localhost.
+# to set a new one. Passwords and the token reach curl on stdin or a file
+# descriptor, never on a command line, and only a port held by root or the
+# wazuh user gets them. That narrows the window, since the API could stop between
+# the check and the send. What closes it is checking the certificate the API made
+# for itself, which names localhost.
 set -eu
 dir=$1
 url=https://localhost:55000
@@ -29,8 +30,10 @@ held_or_stop
 token=$(printf 'user = "wazuh:%s"\n' "$current" | curl -sSf $tls -K - -X POST "$url/security/user/authenticate?raw=true")
 set_password() {
   held_or_stop
-  printf '{"password":"%s"}' "$2" | curl -sSf $tls -o /dev/null -X PUT -H "Authorization: Bearer $token" \
-    -H 'Content-Type: application/json' -d @- "$url/security/users/$1"
+  printf 'header = "Authorization: Bearer %s"\n' "$token" | curl -sSf $tls -o /dev/null -X PUT -K - \
+    -H 'Content-Type: application/json' -d @/dev/fd/3 "$url/security/users/$1" 3<<JSON
+{"password":"$2"}
+JSON
 }
 
 # wazuh-wui, user 2, goes first: changing wazuh, user 1, ends this token.
