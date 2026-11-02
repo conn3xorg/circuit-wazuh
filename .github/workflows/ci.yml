@@ -124,6 +124,40 @@ jobs:
           ADMIN_PASSWORD: Ci-only-admin-2.
           API_PASSWORD: Ci-only-api-2.
         run: test/check.sh
+      - name: The API's certificate is checked
+        run: |
+          if grep -E 'curl .*(-[a-zA-Z]*k|--insecure)( |$)' files/api-passwords.sh; then exit 1; fi
+      - name: Another process on the port gets no password
+        working-directory: examples/local
+        env:
+          TF_VAR_admin_password: Ci-only-admin-2.
+          TF_VAR_api_password: Ci-only-api-3.
+        run: |
+          sudo podman cp ../../test/listener.py circuit-wazuh-server:/tmp/listener.py
+          sudo podman exec circuit-wazuh-server sh -ec '
+            command -v python3 >/dev/null || { apt-get -qq update && apt-get -qq install -y python3 || dnf -q install -y python3; } >/dev/null
+            systemctl stop wazuh-manager
+            openssl req -x509 -newkey rsa:2048 -nodes -subj /CN=listener -keyout /tmp/listener.key -out /tmp/listener.crt 2>/dev/null
+            chmod 644 /tmp/listener.key /tmp/listener.py
+            install -m 666 /dev/null /tmp/listener.log
+          '
+          sudo podman exec -d circuit-wazuh-server sh -c 'cd /tmp && exec runuser -u nobody -- python3 /tmp/listener.py 55000 /tmp/listener.crt /tmp/listener.key /tmp/listener.log'
+          sleep 3
+          if out=$(conn3x apply -auto-approve -no-color 2>&1); then exit 1; fi
+          printf '%s\n' "$out" | grep -q "isn't held by the Wazuh API"
+          sudo podman exec circuit-wazuh-server sh -ec '
+            [ ! -s /tmp/listener.log ]
+            pkill -u nobody python3
+            while awk '"'"'$4 == "0A" && $2 ~ /:D6D8$/ { f = 1 } END { exit !f }'"'"' /proc/net/tcp; do sleep 1; done
+            for _ in 1 2 3; do
+              systemctl restart wazuh-manager
+              for _ in $(seq 60); do [ "$(curl -sk -o /dev/null -w "%{http_code}" https://127.0.0.1:55000/)" = 401 ] && exit 0; sleep 2; done
+            done
+            tail -n 20 /var/ossec/logs/api.log >&2
+            exit 1
+          '
+          conn3x apply -auto-approve
+          conn3x plan -detailed-exitcode
       - name: Check the old passwords are refused and state holds no secrets
         working-directory: examples/local
         run: |
