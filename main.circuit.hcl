@@ -63,6 +63,9 @@ locals {
   # made on the host, so the file is built there rather than in a step's
   # content, which would put it in state.
   wazuh_yml = "/usr/share/wazuh-dashboard/data/wazuh/config/wazuh.yml"
+
+  # Replaces a certs directory with what's on stdin, as the directory's owner.
+  unpack_certs = "set -e; [ -L \"$1\" ] || [ ! -d \"$1\" ] || chmod 700 \"$1\"; rm -rf \"$1\"; mkdir -m 700 \"$1\"; tar --no-same-owner -xf - -C \"$1\"; chmod 400 \"$1\"/*; chmod 500 \"$1\""
 }
 
 # Debian and Ubuntu stay on the circuit's version through apt upgrade, since
@@ -189,15 +192,16 @@ circuit "wazuh_server" {
   # Each part gets its own copy under the names its package's config expects.
   step "deploy_certs" {
     command {
-      command = join(" && ", [
-        "cd ${local.certs}",
-        "install -d -m 500 -o wazuh-indexer -g wazuh-indexer /etc/wazuh-indexer/certs",
-        "install -m 400 -o wazuh-indexer -g wazuh-indexer indexer.pem indexer-key.pem admin.pem admin-key.pem root-ca.pem /etc/wazuh-indexer/certs/",
-        "install -d -m 500 /etc/filebeat/certs",
-        "install -m 400 filebeat.pem filebeat-key.pem root-ca.pem /etc/filebeat/certs/",
-        "install -d -m 500 -o wazuh-dashboard -g wazuh-dashboard /etc/wazuh-dashboard/certs",
-        "install -m 400 -o wazuh-dashboard -g wazuh-dashboard dashboard.pem dashboard-key.pem root-ca.pem /etc/wazuh-dashboard/certs/",
-      ])
+      # The indexer and the dashboard own their config directories, so they
+      # unpack their own copies. Filebeat's is root's.
+      command = <<-EOT
+        set -e
+        cd ${local.certs}
+        tar -cf - indexer.pem indexer-key.pem admin.pem admin-key.pem root-ca.pem | runuser -u wazuh-indexer -- sh -c '${local.unpack_certs}' sh /etc/wazuh-indexer/certs
+        install -d -m 500 /etc/filebeat/certs
+        install -m 400 filebeat.pem filebeat-key.pem root-ca.pem /etc/filebeat/certs/
+        tar -cf - dashboard.pem dashboard-key.pem root-ca.pem | runuser -u wazuh-dashboard -- sh -c '${local.unpack_certs}' sh /etc/wazuh-dashboard/certs
+      EOT
       triggers = {
         certs     = conn3x_command.wazuh_server__certs[each.key].revision
         indexer   = conn3x_package.wazuh_server__indexer_package[each.key].revision
@@ -265,14 +269,20 @@ circuit "wazuh_server" {
   # Once only: running it again would throw away users and roles made since.
   step "indexer_security" {
     command {
-      command = "${local.dir}/indexer-users.sh ${local.dir} && touch ${local.dir}/indexer-security-done"
+      command = <<-EOT
+        set -e
+        (umask 077; [ -f ${local.dir}/kibanaserver-password ] || openssl rand -hex 24 > ${local.dir}/kibanaserver-password)
+        cd /
+        runuser -u wazuh-indexer -- sh -s 3< ${local.dir}/kibanaserver-password < ${local.dir}/indexer-users.sh
+        touch ${local.dir}/indexer-security-done
+      EOT
       creates = "${local.dir}/indexer-security-done"
     }
   }
 
   step "indexer_admin" {
     command {
-      command = "${local.dir}/admin-password.sh ${local.dir}/admin-password"
+      command = "cd / && runuser -u wazuh-indexer -- sh -s 3< ${local.dir}/admin-password < ${local.dir}/admin-password.sh"
       triggers = {
         security = conn3x_command.wazuh_server__indexer_security[each.key].revision
         password = conn3x_file.wazuh_server__admin_password[each.key].revision
@@ -471,14 +481,21 @@ circuit "wazuh_server" {
 
   step "dashboard_secrets" {
     command {
-      command = join(" && ", [
-        "ks='/usr/share/wazuh-dashboard/bin/opensearch-dashboards-keystore --allow-root'",
-        "printf kibanaserver | $ks add -f --stdin opensearch.username >/dev/null",
-        "printf %s \"$(cat ${local.dir}/kibanaserver-password)\" | $ks add -f --stdin opensearch.password >/dev/null",
-        "install -d -o wazuh-dashboard -g wazuh-dashboard ${dirname(dirname(local.wazuh_yml))} ${dirname(local.wazuh_yml)}",
-        "(umask 077; printf 'hosts:\\n  - default:\\n      url: https://127.0.0.1\\n      port: 55000\\n      username: wazuh-wui\\n      password: \"%s\"\\n      run_as: false\\n' \"$(cat ${local.dir}/wazuh-wui-password)\" > ${local.wazuh_yml})",
-        "chown wazuh-dashboard:wazuh-dashboard ${local.wazuh_yml}",
-      ])
+      # The package gives its directories to wazuh-dashboard, so all of this
+      # runs as that user. The passwords arrive on file descriptors root opens.
+      command = <<-EOT
+        cd /
+        runuser -u wazuh-dashboard -- sh -es 3< ${local.dir}/kibanaserver-password 4< ${local.dir}/wazuh-wui-password <<'SH'
+        ks=/usr/share/wazuh-dashboard/bin/opensearch-dashboards-keystore
+        printf kibanaserver | $ks add -f --stdin opensearch.username >/dev/null
+        printf %s "$(cat <&3)" | $ks add -f --stdin opensearch.password >/dev/null
+        c=${dirname(local.wazuh_yml)}
+        for p in "$${c%/*}" "$c" ${local.wazuh_yml}; do [ ! -L "$p" ] || rm -f "$p"; done
+        mkdir -p "$c"
+        umask 077
+        printf 'hosts:\n  - default:\n      url: https://127.0.0.1\n      port: 55000\n      username: wazuh-wui\n      password: "%s"\n      run_as: false\n' "$(cat <&4)" > ${local.wazuh_yml}
+        SH
+      EOT
       triggers = {
         package  = conn3x_package.wazuh_server__dashboard_package[each.key].revision
         security = conn3x_command.wazuh_server__indexer_security[each.key].revision

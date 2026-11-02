@@ -105,8 +105,20 @@ jobs:
           TF_VAR_admin_password: Ci-only-admin-2.
           TF_VAR_api_password: Ci-only-api-2.
         run: |
+          sudo podman exec circuit-wazuh-server sh -ec '
+            install -d /root/kept
+            d=/usr/share/wazuh-dashboard/data/wazuh
+            rm -rf $d/config
+            ln -s /root/kept $d/config
+          '
           conn3x apply -auto-approve
           conn3x plan -detailed-exitcode
+          # A link in the dashboard's data directory leaves where it points as it was.
+          sudo podman exec circuit-wazuh-server sh -ec '
+            [ "$(stat -c "%U:%G %a" /root/kept)" = "root:root 755" ]
+            [ -z "$(ls -A /root/kept)" ]
+            [ "$(stat -c "%U:%G %a" /usr/share/wazuh-dashboard/data/wazuh/config/wazuh.yml)" = "wazuh-dashboard:wazuh-dashboard 600" ]
+          '
       - name: Check again with the new passwords
         env:
           ADMIN_PASSWORD: Ci-only-admin-2.
