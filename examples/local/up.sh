@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
-# Starts two throwaway hosts Conn3x can configure: NAME-server on
-# 127.0.0.1:$PORT (default 2222) and NAME-agent on 127.0.0.1:$AGENT_PORT
+# Starts two throwaway hosts Conn3x can configure: CONTAINER_NAME-server on
+# 127.0.0.1:$PORT (default 2222) and CONTAINER_NAME-agent on 127.0.0.1:$AGENT_PORT
 # (default PORT+1), with a fresh SSH key, their host keys in ./known_hosts
 # and the ports and the server's container address in ./terraform.tfvars.
 # CONTAINERFILE picks another image for the server, AGENT_CONTAINERFILE for
@@ -14,7 +14,7 @@ port=${PORT:-2222}
 agent_port=${AGENT_PORT:-$((port + 1))}
 containerfile=${CONTAINERFILE:-Containerfile}
 agent_containerfile=${AGENT_CONTAINERFILE:-$containerfile}
-name=${NAME:-circuit-wazuh}
+name=${CONTAINER_NAME:-circuit-wazuh}
 
 podman=${PODMAN:-podman}
 [ -f id_ed25519 ] || ssh-keygen -q -t ed25519 -N '' -C "$name" -f id_ed25519
