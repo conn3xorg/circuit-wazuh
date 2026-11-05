@@ -55,7 +55,7 @@ variable "wazuh_enrollment_password" {
 }
 
 module "wazuh" {
-  source = "github.com/conn3xorg/circuit-wazuh?ref=v0.1.4"
+  source = "github.com/conn3xorg/circuit-wazuh?ref=v0.1.5"
 
   server               = { siem = "203.0.113.10" }
   agents               = { web1 = "203.0.113.21", web2 = "203.0.113.22", db1 = "203.0.113.30" }
