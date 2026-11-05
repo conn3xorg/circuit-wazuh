@@ -55,7 +55,7 @@ variable "wazuh_enrollment_password" {
 }
 
 module "wazuh" {
-  source = "github.com/conn3xorg/circuit-wazuh?ref=v0.1.5"
+  source = "github.com/conn3xorg/circuit-wazuh?ref=v0.2.0"
 
   server               = { siem = "203.0.113.10" }
   agents               = { web1 = "203.0.113.21", web2 = "203.0.113.22", db1 = "203.0.113.30" }
@@ -142,7 +142,7 @@ On each agent, once the server is ready:
 ### What it doesn't do
 
 - It doesn't build a distributed deployment or a manager cluster. The indexer stays on loopback.
-- It doesn't run the server on Debian or Fedora. Wazuh's list for the central components is Ubuntu, Amazon Linux and the Red Hat family, and the circuit stops with a message on anything else. Both work as agents.
+- It doesn't run the server on Debian or Fedora. Wazuh's list for the central components is Ubuntu, Amazon Linux and the Red Hat family. The circuit runs them on Ubuntu, Amazon Linux, Rocky Linux, AlmaLinux or RHEL, and stops with a message on anything else. Both work as agents.
 - It doesn't let the server be an agent too. Wazuh's two packages conflict, and the manager already watches its own host, as agent `000`.
 - It doesn't turn on realtime file monitoring, change which rules run, or send email. All of that is in `ossec.conf`, which the circuit only edits line by line.
 - It doesn't install agents on Windows or macOS.
