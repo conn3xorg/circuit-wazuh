@@ -19,8 +19,8 @@ data "conn3x_host" "facts" {
       error_message = "Host ${each.key} is ${self.os_id}, not the ${try(each.value.os, "")} its os says."
     }
     postcondition {
-      condition     = !contains(keys(var.server), each.key) || contains(["ubuntu", "rocky", "almalinux", "rhel", "centos", "amzn"], self.os_id)
-      error_message = "Host ${each.key} is ${self.os_id}. Wazuh's central components support Ubuntu, Amazon Linux and the Red Hat family. It can still run the agent."
+      condition     = !contains(keys(var.server), each.key) || contains(["ubuntu", "rocky", "almalinux", "rhel", "amzn"], self.os_id)
+      error_message = "Host ${each.key} is ${self.os_id}. This circuit runs Wazuh's central components on Ubuntu, Amazon Linux, Rocky Linux, AlmaLinux or RHEL. It can still run the agent."
     }
   }
 }
