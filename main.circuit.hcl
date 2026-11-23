@@ -239,8 +239,8 @@ circuit "wazuh_server" {
 
   # A step rather than a handler, so the steps below talk to the new one.
   step "indexer_restart" {
-    command {
-      command = "systemctl daemon-reload && systemctl restart wazuh-indexer"
+    service_action {
+      name = "wazuh-indexer"
       triggers = {
         package = conn3x_package.wazuh_server__indexer_package[each.key].revision
         certs   = conn3x_command.wazuh_server__deploy_certs[each.key].revision
@@ -262,7 +262,7 @@ circuit "wazuh_server" {
   step "indexer_ready" {
     command {
       command  = "for _ in $(seq 120); do [ \"$(curl -sk -o /dev/null -w '%%{http_code}' https://127.0.0.1:9200/)\" != 000 ] && exit 0; sleep 2; done; exit 1"
-      triggers = { restart = conn3x_command.wazuh_server__indexer_restart[each.key].revision }
+      triggers = { restart = conn3x_service_action.wazuh_server__indexer_restart[each.key].revision }
     }
   }
 
@@ -350,8 +350,8 @@ circuit "wazuh_server" {
   }
 
   step "manager_restart" {
-    command {
-      command = "systemctl daemon-reload && systemctl restart wazuh-manager"
+    service_action {
+      name = "wazuh-manager"
       triggers = {
         package    = conn3x_package.wazuh_server__manager_package[each.key].revision
         enrollment = conn3x_file.wazuh_server__enrollment_password[each.key].revision
@@ -374,7 +374,7 @@ circuit "wazuh_server" {
   step "api_ready" {
     command {
       command  = "for _ in $(seq 120); do [ \"$(curl -sk -o /dev/null -w '%%{http_code}' https://127.0.0.1:55000/)\" = 401 ] && exit 0; sleep 2; done; exit 1"
-      triggers = { restart = conn3x_command.wazuh_server__manager_restart[each.key].revision }
+      triggers = { restart = conn3x_service_action.wazuh_server__manager_restart[each.key].revision }
     }
   }
 
@@ -435,8 +435,8 @@ circuit "wazuh_server" {
   }
 
   step "filebeat_restart" {
-    command {
-      command = "systemctl daemon-reload && systemctl restart filebeat"
+    service_action {
+      name = "filebeat"
       triggers = {
         config   = conn3x_file.wazuh_server__filebeat_config[each.key].revision
         template = conn3x_download.wazuh_server__filebeat_template[each.key].revision
@@ -505,8 +505,8 @@ circuit "wazuh_server" {
   }
 
   step "dashboard_restart" {
-    command {
-      command = "systemctl daemon-reload && systemctl restart wazuh-dashboard"
+    service_action {
+      name = "wazuh-dashboard"
       triggers = {
         host    = conn3x_line.wazuh_server__dashboard_host[each.key].revision
         port    = conn3x_line.wazuh_server__dashboard_port[each.key].revision
@@ -529,7 +529,7 @@ circuit "wazuh_server" {
   step "dashboard_ready" {
     command {
       command  = "for _ in $(seq 150); do c=$(curl -sk -o /dev/null -w '%%{http_code}' https://127.0.0.1:${var.dashboard_port}/app/login); [ \"$c\" = 200 ] && exit 0; sleep 2; done; exit 1"
-      triggers = { restart = conn3x_command.wazuh_server__dashboard_restart[each.key].revision }
+      triggers = { restart = conn3x_service_action.wazuh_server__dashboard_restart[each.key].revision }
     }
   }
 }

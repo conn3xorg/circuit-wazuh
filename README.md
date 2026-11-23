@@ -181,7 +181,7 @@ On each agent, once the server is ready:
 
 ## Requirements
 
-Requires Conn3x v0.6.9 or later and systemd on each host, with outbound HTTPS to packages.wazuh.com, and from the server to raw.githubusercontent.com. Wazuh's packages exist for amd64 and arm64.
+Requires Conn3x v0.28.0 or later and systemd on each host, with outbound HTTPS to packages.wazuh.com, and from the server to raw.githubusercontent.com. Wazuh's packages exist for amd64 and arm64.
 
 The steps that set the API's passwords check the certificate the API made for itself, which lasts a year from first start. Once it expires they stop with a certificate error, until you replace it.
 
